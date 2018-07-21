@@ -1,9 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
+)
+
+const (
+	ErrEmptyConfig = "Error empty configuration"
 )
 
 // Chronograph contains some basic data structures needed to store benchmark metadata
@@ -70,4 +75,11 @@ func (c *Chronograph) AddEvent(t time.Duration) {
 	c.Timeslices = append(c.Timeslices, t)
 	c.Count = c.Count + 1
 	c.Unlock()
+}
+
+func NewChronograph(c *Config) (*Chronograph, error) {
+	if c == nil {
+		return nil, errors.New(ErrEmptyConfig)
+	}
+	return &Chronograph{Config: c, Count: 0}, nil
 }

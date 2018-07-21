@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -20,18 +21,27 @@ func (c *Chronograph) Calculate() *Metrics {
 	metrics.Time.Cumulative = timeslices.cumulative()
 	metrics.Time.Mean = timeslices.mean()
 	metrics.Time.StdDev = timeslices.stdDev()
-	metrics.Time.P50 = timeslices[timeslices.Len()/2]
-	metrics.Time.P75 = timeslices.p(0.75)
-	metrics.Time.P95 = timeslices.p(0.95)
-	metrics.Time.P99 = timeslices.p(0.99)
-	metrics.Time.P999 = timeslices.p(0.999)
+	metrics.Time.P50 = timeslices.percentile(0.5)
+	metrics.Time.P75 = timeslices.percentile(0.75)
+	metrics.Time.P95 = timeslices.percentile(0.95)
+	metrics.Time.P99 = timeslices.percentile(0.99)
+	metrics.Time.P999 = timeslices.percentile(0.999)
 	metrics.Time.Max = timeslices.max()
 	metrics.Time.Min = timeslices.min()
 	c.Unlock()
+	return metrics
 }
 
 func (ts timeSlice) Len() int {
 	return len(ts)
+}
+
+func (ts timeSlice) Less(i, j int) bool {
+	return int64(ts[i]) < int64(ts[j])
+}
+
+func (ts timeSlice) Swap(i, j int) {
+	ts[i], ts[j] = ts[j], ts[i]
 }
 
 func (ts timeSlice) cumulative() time.Duration {
@@ -47,11 +57,10 @@ func (ts timeSlice) mean() time.Duration {
 	for _, t := range ts {
 		total += t
 	}
-	return time.Duration(total.Nanoseconds() / ts.Len())
+	return time.Duration(total.Nanoseconds() / int64(ts.Len()))
 }
 
 func (ts timeSlice) stdDev() time.Duration {
-	var total time.Duration
 	avg := ts.mean()
 	total := 0.00
 	for _, t := range ts {
@@ -69,6 +78,18 @@ func (ts timeSlice) max() time.Duration {
 	return ts[ts.Len()-1]
 }
 
-func (ts timeSlice) p(p float64) time.Duration {
-	return ts[int(float64(ts.Len())*p+0.5)-1]
+func (ts timeSlice) percentile(p float64) time.Duration {
+	p = math.Min(float64(100), math.Max(float64(0), p))
+	index := (p / float64(100)) * float64((ts.Len() - 1))
+	fractionPart := index - math.Floor(index)
+	intPart := int64(math.Floor(index))
+	result := ts[intPart].Nanoseconds()
+	if fractionPart > 0 {
+		result += int64(fractionPart * float64((ts[intPart+1].Nanoseconds() - ts[intPart].Nanoseconds())))
+	}
+	duration, err := time.ParseDuration(fmt.Sprintf("%dns", result))
+	if err != nil {
+		panic(err)
+	}
+	return duration
 }
