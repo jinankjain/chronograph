@@ -83,3 +83,8 @@ func NewChronograph(c *Config) (*Chronograph, error) {
 	}
 	return &Chronograph{Config: c, Count: 0}, nil
 }
+
+func (c *Chronograph) Reset() {
+	c.Count = 0
+	c.Timeslices = nil
+}
